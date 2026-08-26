@@ -1,0 +1,10 @@
+{
+  "name": "DualLingua Subtitle & Highlight Tool",
+  "description": "Bilingual real-time speech-to-text subtitle transcription with custom word highlighting and tokenization.",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

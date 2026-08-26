@@ -1,4 +1,5 @@
 import { useRef } from 'react';
+import { Mic, Square, Wifi, HardDrive, AlertCircle } from 'lucide-react';
 import { useAudioVisualizer } from '../hooks/useAudioVisualizer';
 import type { LocalWhisperState } from '../hooks/useSpeechRecognition';
 
@@ -13,6 +14,7 @@ interface VisualizerProps {
   whisperModel: string;
   setWhisperModel: (model: string) => void;
   localWhisperState: LocalWhisperState;
+  currentLang: string;
 }
 
 export default function Visualizer({
@@ -26,307 +28,189 @@ export default function Visualizer({
   whisperModel,
   setWhisperModel,
   localWhisperState,
+  currentLang,
 }: VisualizerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  
-  // Use the visualizer hook.
+
+  // Audio waveform visualizer
   const { micVolume } = useAudioVisualizer({
     isListening,
     canvasRef,
     analyserNode,
-    accentColor: '#6366f1',
+    accentColor: isListening ? '#4F46E5' : '#6366F1',
   });
 
-  const isWhisperLoading = transcriptionMode === 'local-whisper' && 
+  const isWhisperLoading =
+    transcriptionMode === 'local-whisper' &&
     (localWhisperState.status === 'loading' || localWhisperState.status === 'progress');
 
-  // Disable start listening if browser doesn't support Web Speech API AND we are in Web Speech mode,
-  // or if Whisper is loading, or if Whisper has errored out.
-  const isStartDisabled = (transcriptionMode === 'web-speech' && !supported) ||
-                          (transcriptionMode === 'local-whisper' && localWhisperState.status !== 'ready');
+  const isStartDisabled =
+    (transcriptionMode === 'web-speech' && !supported) ||
+    (transcriptionMode === 'local-whisper' && localWhisperState.status !== 'ready');
+
+  const getLangLabel = () => {
+    switch (currentLang) {
+      case 'zh-CN':
+      case 'zh-TW':
+        return '中国語優先 (繁体字表示・中英両対応)';
+      case 'en-US':
+        return '英語優先 (中英両対応)';
+      default:
+        return '中国語優先 (繁体字表示・中英両対応)';
+    }
+  };
 
   return (
-    <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px', position: 'relative', overflow: 'hidden' }}>
+    <div className="cream-card p-5 relative overflow-hidden">
       
-      {/* Background radial glow */}
-      {isListening && (
-        <div style={{
-          position: 'absolute',
-          top: '50%',
-          left: '50%',
-          transform: 'translate(-50%, -50%)',
-          width: '300px',
-          height: '300px',
-          background: `radial-gradient(circle, rgba(99, 102, 241, ${0.05 + (micVolume / 255) * 0.15}) 0%, transparent 70%)`,
-          zIndex: 0,
-          pointerEvents: 'none',
-          borderRadius: '50%'
-        }} />
-      )}
-
-      {/* Engine Selection & Settings */}
-      <div style={{ width: '100%', zIndex: 1, display: 'flex', flexDirection: 'column', gap: '12px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Transcription Engine</span>
+      {/* Engine Switch & Header - strictly single line layout */}
+      <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-[#E8E2D8] flex-nowrap">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 min-w-0">
+          <h2 className="text-xs sm:text-sm font-bold text-[#1E293B] whitespace-nowrap">
+            音声認識コントロール
+          </h2>
+          <span className="text-[10px] sm:text-[11px] font-semibold px-1.5 sm:px-2 py-0.5 bg-rose-50 text-rose-800 rounded-md border border-rose-200 whitespace-nowrap">
+            {getLangLabel()}
+          </span>
         </div>
-        
-        {/* Mode Selector buttons */}
-        <div style={{ display: 'flex', backgroundColor: 'var(--bg-tertiary)', borderRadius: '10px', padding: '4px', border: '1px solid var(--border-color)' }}>
+
+        {/* Mode Selector (Online Web Speech vs Offline Whisper) */}
+        <div className="flex items-center bg-[#FAF8F5] p-0.5 sm:p-1 rounded-lg border border-[#E8E2D8] shrink-0">
           <button
             onClick={() => setTranscriptionMode('web-speech')}
             disabled={isListening}
-            style={{
-              flex: 1,
-              padding: '8px',
-              fontSize: '0.8rem',
-              fontWeight: 600,
-              borderRadius: '8px',
-              border: 'none',
-              cursor: isListening ? 'not-allowed' : 'pointer',
-              color: transcriptionMode === 'web-speech' ? '#fff' : 'var(--text-secondary)',
-              backgroundColor: transcriptionMode === 'web-speech' ? 'var(--accent-primary)' : 'transparent',
-              transition: 'all 0.2s ease',
-              opacity: isListening && transcriptionMode !== 'web-speech' ? 0.5 : 1,
-              boxShadow: transcriptionMode === 'web-speech' ? 'var(--shadow-sm)' : 'none',
-            }}
+            className={`flex items-center gap-1 px-2 sm:px-2.5 py-0.5 sm:py-1 text-[10px] sm:text-xs font-semibold rounded-md transition-all whitespace-nowrap ${
+              transcriptionMode === 'web-speech'
+                ? 'bg-rose-700 text-white shadow-xs'
+                : 'text-[#64748B] hover:text-[#1E293B]'
+            } ${isListening ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
           >
-            Web Speech (Online)
+            <Wifi className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+            <span>オンライン</span>
+            <span className="hidden sm:inline">(高速・高精度)</span>
           </button>
           <button
             onClick={() => setTranscriptionMode('local-whisper')}
             disabled={isListening}
-            style={{
-              flex: 1,
-              padding: '8px',
-              fontSize: '0.8rem',
-              fontWeight: 600,
-              borderRadius: '8px',
-              border: 'none',
-              cursor: isListening ? 'not-allowed' : 'pointer',
-              color: transcriptionMode === 'local-whisper' ? '#fff' : 'var(--text-secondary)',
-              backgroundColor: transcriptionMode === 'local-whisper' ? 'var(--accent-primary)' : 'transparent',
-              transition: 'all 0.2s ease',
-              opacity: isListening && transcriptionMode !== 'local-whisper' ? 0.5 : 1,
-              boxShadow: transcriptionMode === 'local-whisper' ? 'var(--shadow-sm)' : 'none',
-            }}
+            className={`flex items-center gap-1 px-2 sm:px-2.5 py-0.5 sm:py-1 text-[10px] sm:text-xs font-semibold rounded-md transition-all whitespace-nowrap ${
+              transcriptionMode === 'local-whisper'
+                ? 'bg-rose-700 text-white shadow-xs'
+                : 'text-[#64748B] hover:text-[#1E293B]'
+            } ${isListening ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
           >
-            Local Whisper (Offline)
+            <HardDrive className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+            <span>オフライン</span>
+            <span className="hidden sm:inline">(Whisper)</span>
           </button>
         </div>
-
-        {/* Local Whisper specific UI */}
-        {transcriptionMode === 'local-whisper' && (
-          <div style={{
-            backgroundColor: 'var(--bg-secondary)',
-            borderRadius: '10px',
-            padding: '12px',
-            border: '1px solid var(--border-color)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '8px',
-            animation: 'fadeIn 0.2s ease'
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Model Size:</span>
-              <select
-                value={whisperModel}
-                onChange={(e) => setWhisperModel(e.target.value)}
-                disabled={isListening || isWhisperLoading}
-                style={{
-                  fontSize: '0.75rem',
-                  padding: '4px 8px',
-                  borderRadius: '6px',
-                  backgroundColor: 'var(--bg-tertiary)',
-                  border: '1px solid var(--border-color)',
-                  color: 'var(--text-primary)',
-                  outline: 'none',
-                  cursor: 'pointer'
-                }}
-              >
-                <option value="Xenova/whisper-tiny">Tiny (~75MB - Fast)</option>
-                <option value="Xenova/whisper-base">Base (~140MB - Accurate)</option>
-              </select>
-            </div>
-
-            {/* Model status/download progress */}
-            {localWhisperState.status === 'idle' && (
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                ℹ️ Whisper model will be downloaded to browser cache on first use.
-              </div>
-            )}
-            
-            {isWhisperLoading && (() => {
-              const rawProgress = localWhisperState.progress;
-              const hasValidProgress = typeof rawProgress === 'number' && !isNaN(rawProgress) && rawProgress > 0;
-              const progressVal = hasValidProgress ? rawProgress : 0;
-              const isIndeterminate = !hasValidProgress;
-
-              return (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem' }}>
-                    <span style={{ color: 'var(--accent-primary)', fontWeight: 600 }}>
-                      {localWhisperState.status === 'progress' 
-                        ? (hasValidProgress 
-                            ? `Downloading: ${Math.round(progressVal)}%` 
-                            : 'Loading local model files...') 
-                        : 'Initializing...'}
-                    </span>
-                    <span style={{ color: 'var(--text-muted)', fontSize: '0.7rem' }}>
-                      {localWhisperState.message}
-                    </span>
-                  </div>
-                  {/* Progress bar */}
-                  <div style={{ 
-                    width: '100%', 
-                    height: '6px', 
-                    backgroundColor: 'var(--bg-tertiary)', 
-                    borderRadius: '3px', 
-                    overflow: 'hidden',
-                    position: 'relative'
-                  }}>
-                    {isIndeterminate ? (
-                      <div className="indeterminate-progress-bar" style={{
-                        position: 'absolute',
-                        left: 0,
-                        top: 0,
-                        bottom: 0,
-                        width: '40%',
-                        backgroundColor: 'var(--accent-primary)',
-                        borderRadius: '3px',
-                        boxShadow: 'var(--accent-primary-glow) 0 0 8px'
-                      }} />
-                    ) : (
-                      <div style={{
-                        width: `${progressVal}%`,
-                        height: '100%',
-                        backgroundColor: 'var(--accent-primary)',
-                        borderRadius: '3px',
-                        transition: 'width 0.1s ease',
-                        boxShadow: 'var(--accent-primary-glow) 0 0 8px'
-                      }} />
-                    )}
-                  </div>
-                </div>
-              );
-            })()}
-
-            {localWhisperState.status === 'ready' && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', color: '#10b981', fontWeight: 600 }}>
-                <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#10b981' }} />
-                Model Ready (ON-DEVICE OFFLINE)
-              </div>
-            )}
-
-            {localWhisperState.status === 'error' && (
-              <div style={{ fontSize: '0.75rem', color: 'var(--accent-danger)' }}>
-                ❌ {localWhisperState.message || 'Failed to load model.'}
-              </div>
-            )}
-          </div>
-        )}
       </div>
 
-      <hr style={{ width: '100%', border: 'none', borderTop: '1px solid var(--border-color)', margin: '0', zIndex: 1 }} />
+      {/* Whisper Model Downloader & Status bar (Shown only if offline mode chosen) */}
+      {transcriptionMode === 'local-whisper' && (
+        <div className="mt-3 p-3 bg-[#FAF8F5] rounded-xl border border-[#E8E2D8] flex flex-col gap-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium text-[#475569]">モデルサイズ:</span>
+            <select
+              value={whisperModel}
+              onChange={(e) => setWhisperModel(e.target.value)}
+              disabled={isListening || isWhisperLoading}
+              className="text-xs bg-white border border-[#E8E2D8] rounded-md px-2 py-1 text-[#1E293B] outline-none"
+            >
+              <option value="Xenova/whisper-tiny">Tiny (~75MB - 高速)</option>
+              <option value="Xenova/whisper-base">Base (~140MB - 高精度)</option>
+            </select>
+          </div>
 
-      {/* Waveform Canvas */}
-      <div style={{ position: 'relative', width: '100%', height: '80px', display: 'flex', justifyContent: 'center', zIndex: 1 }}>
+          {isWhisperLoading && (
+            <div className="flex flex-col gap-1.5">
+              <div className="flex justify-between text-xs text-[#475569]">
+                <span>モデルを準備中...</span>
+                <span>{Math.round(localWhisperState.progress || 0)}%</span>
+              </div>
+              <div className="w-full bg-[#E8E2D8] rounded-full h-1.5 overflow-hidden">
+                <div 
+                  className="bg-rose-700 h-full transition-all duration-200"
+                  style={{ width: `${localWhisperState.progress || 10}%` }}
+                />
+              </div>
+            </div>
+          )}
+
+          {localWhisperState.status === 'ready' && (
+            <span className="text-xs text-emerald-700 font-medium">
+              ✓ オフラインモデル準備完了（ブラウザ内で安全に動作）
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Canvas Audio Waveform Area */}
+      <div className="my-4 relative h-16 w-full bg-[#FAF8F5] rounded-xl border border-[#E8E2D8] overflow-hidden flex items-center justify-center">
         <canvas
           ref={canvasRef}
           width={600}
-          height={80}
-          style={{ width: '100%', height: '100%', borderRadius: '12px' }}
+          height={64}
+          className="w-full h-full"
         />
-        {transcriptionMode === 'web-speech' && !supported && (
-          <div style={{
-            position: 'absolute',
-            inset: 0,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            backgroundColor: 'rgba(11, 15, 25, 0.85)',
-            color: 'var(--accent-danger)',
-            fontSize: '0.85rem',
-            fontWeight: 600,
-            borderRadius: '12px',
-            border: '1px solid rgba(244, 63, 94, 0.2)'
-          }}>
-            Browser does not support Web Speech API. Switch to Local Whisper!
+        
+        {!isListening && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none text-xs font-medium text-[#94A3B8]">
+            マイクボタンを押して聞き取りを開始してください
           </div>
         )}
       </div>
 
-      {/* Mic toggle and status */}
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', zIndex: 1 }}>
+      {/* Big One-Tap Toggle Button & Status */}
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+        
+        {/* Status text */}
+        <div className="flex items-center gap-2.5">
+          <div className={`w-3 h-3 rounded-full ${
+            isListening ? 'bg-rose-600 animate-ping' : 'bg-[#CBD5E1]'
+          }`} />
+          <div>
+            <div className="text-xs font-bold text-[#1E293B]">
+              {isListening ? 'リアルタイム認識中 (聞き取り中)' : '待機中 (マイク停止)'}
+            </div>
+            <div className="text-[11px] text-[#64748B]">
+              {isListening
+                ? `入力音量: ${Math.round((micVolume / 255) * 100)}%`
+                : 'ボタンを押すと自動的に文字起こしされます'}
+            </div>
+          </div>
+        </div>
+
+        {/* Big Start / Stop Button */}
         <button
+          id="toggle-mic-btn"
           onClick={onToggleListening}
           disabled={isStartDisabled}
-          className={isListening ? 'mic-active-pulse' : ''}
-          style={{
-            width: '64px',
-            height: '64px',
-            borderRadius: '50%',
-            backgroundColor: isListening ? 'var(--accent-danger)' : 'var(--accent-primary)',
-            color: '#fff',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: '1.5rem',
-            boxShadow: isListening 
-              ? '0 0 25px 2px rgba(244, 63, 94, 0.4)' 
-              : '0 0 20px 2px rgba(99, 102, 241, 0.25)',
-            opacity: isStartDisabled ? 0.4 : 1,
-            cursor: isStartDisabled ? 'not-allowed' : 'pointer',
-            transition: 'all 0.2s ease',
-          }}
+          className={`flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl font-bold text-sm text-white transition-all shadow-sm ${
+            isListening
+              ? 'bg-rose-800 hover:bg-rose-900 mic-active-pulse'
+              : 'bg-rose-700 hover:bg-rose-800 shadow-rose-100 hover:shadow-md'
+          } ${isStartDisabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
         >
           {isListening ? (
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="4" y="4" width="16" height="16" rx="2"/>
-            </svg>
-          ) : (
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
-              <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-              <line x1="12" x2="12" y1="19" y2="22"/>
-            </svg>
-          )}
-        </button>
-        
-        <span style={{
-          fontSize: '0.85rem',
-          fontWeight: 600,
-          color: isListening ? 'var(--accent-danger)' : 'var(--text-secondary)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '6px',
-          marginTop: '6px'
-        }}>
-          {isListening ? (
             <>
-              <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: 'var(--accent-danger)', display: 'inline-block' }} />
-              LISTENING (Volume: {Math.round((micVolume / 255) * 100)}%)
+              <Square className="w-4 h-4 fill-white" />
+              <span>聞き取りを停止</span>
             </>
           ) : (
-            'Microphone Inactive'
+            <>
+              <Mic className="w-4 h-4" />
+              <span>音声認識を開始</span>
+            </>
           )}
-        </span>
+        </button>
+
       </div>
 
+      {/* Error alert */}
       {speechError && (
-        <div style={{
-          width: '100%',
-          padding: '10px 14px',
-          backgroundColor: 'rgba(244, 63, 94, 0.1)',
-          border: '1px solid rgba(244, 63, 94, 0.2)',
-          borderRadius: '8px',
-          color: 'var(--accent-danger)',
-          fontSize: '0.85rem',
-          textAlign: 'center',
-          fontWeight: 500,
-          zIndex: 1,
-          animation: 'fadeIn 0.2s ease'
-        }}>
-          ⚠️ {speechError}
+        <div className="mt-3 p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs flex items-center gap-2">
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          <span>{speechError}</span>
         </div>
       )}
 

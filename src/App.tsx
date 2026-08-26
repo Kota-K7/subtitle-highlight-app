@@ -6,109 +6,105 @@ import HighlightManager from './components/HighlightManager';
 import StatisticsPanel from './components/StatisticsPanel';
 import WordDetailsModal from './components/WordDetailsModal';
 import { useSpeechRecognition } from './hooks/useSpeechRecognition';
-import { tokenizeBilingualText } from './utils/helpers';
-import type { SubtitleItem, HighlightWord } from './utils/helpers';
+import { 
+  tokenizeBilingualText, 
+  copyToClipboard, 
+  exportToTXT, 
+  downloadFile, 
+  DEFAULT_DICTIONARY 
+} from './utils/helpers';
+import type { DictionaryWord, SubtitleItem } from './types';
+import { Sparkles, MessageSquare } from 'lucide-react';
+
+interface RawSubtitle {
+  id: string;
+  rawText: string;
+  timestamp: number;
+}
 
 export default function App() {
-  // Theme state
-  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
-    const saved = localStorage.getItem('theme');
-    return (saved as 'dark' | 'light') || 'dark';
-  });
+  // Speech Recognition Language (Default: Chinese zh-CN)
+  const [lang, setLang] = useState('zh-CN');
 
-  // Language state
-  const [lang, setLang] = useState('en-US');
-
-  // Transcription Mode ('web-speech' or 'local-whisper')
+  // Transcription Engine Mode ('web-speech' or 'local-whisper')
   const [transcriptionMode, setTranscriptionMode] = useState<'web-speech' | 'local-whisper'>('web-speech');
-  // Whisper model name
   const [whisperModel, setWhisperModel] = useState('Xenova/whisper-base');
 
-  // Subtitles transcription history
-  const [subtitles, setSubtitles] = useState<SubtitleItem[]>([]);
-
-  // Interim (temporary real-time speech results)
+  // Raw Subtitles History
+  const [rawSubtitles, setRawSubtitles] = useState<RawSubtitle[]>([]);
   const [interimText, setInterimText] = useState('');
 
-  // Highlight words list
-  const [highlightWords, setHighlightWords] = useState<HighlightWord[]>(() => {
-    const saved = localStorage.getItem('highlightWords');
+  // Dictionary Words (Persisted in localStorage with new history/politics categories)
+  const [dictionaryWords, setDictionaryWords] = useState<DictionaryWord[]>(() => {
+    const saved = localStorage.getItem('duallingua_dict_history_v1');
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
       } catch {
-        return [];
+        return DEFAULT_DICTIONARY;
       }
     }
-    // Default initial highlight words
-    return [
-      { word: 'DualLingua', color: 'indigo', notes: 'App Name', createdAt: Date.now() },
-      { word: 'Chinese', color: 'amber', notes: '中文', createdAt: Date.now() },
-      { word: 'English', color: 'emerald', notes: '英語', createdAt: Date.now() }
-    ];
+    return DEFAULT_DICTIONARY;
   });
 
-  // Selected word details modal state
-  const [selectedWord, setSelectedWord] = useState<{ text: string; type: 'en' | 'zh' } | null>(null);
+  // Selected Word Modal state
+  const [selectedWordModal, setSelectedWordModal] = useState<{
+    wordStr: string;
+    matchedWord?: DictionaryWord;
+  } | null>(null);
 
-  // Sync theme to root DOM node
+  // Copy Feedback state
+  const [isAllCopied, setIsAllCopied] = useState(false);
+  const [copiedItemId, setCopiedItemId] = useState<string | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Sync dictionary to localStorage
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
-    localStorage.setItem('theme', theme);
-  }, [theme]);
+    localStorage.setItem('duallingua_dict_history_v1', JSON.stringify(dictionaryWords));
+  }, [dictionaryWords]);
 
-  // Sync highlight words list to local storage
-  useEffect(() => {
-    localStorage.setItem('highlightWords', JSON.stringify(highlightWords));
-  }, [highlightWords]);
+  // Derive dynamic subtitles with tokenization (Traditional Chinese by default)
+  const subtitles: SubtitleItem[] = useMemo(() => {
+    return rawSubtitles.map((item) => ({
+      ...item,
+      tokens: tokenizeBilingualText(item.rawText, dictionaryWords, 'traditional'),
+    }));
+  }, [rawSubtitles, dictionaryWords]);
 
-  // Re-tokenize existing subtitles whenever the highlightWords changes
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setSubtitles((prev) =>
-      prev.map((item) => ({
-        ...item,
-        tokens: tokenizeBilingualText(item.text, highlightWords),
-      }))
-    );
-  }, [highlightWords]);
+  // Show brief toast helper
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => {
+      setToastMessage(null);
+    }, 2000);
+  };
 
-  // Debug logs for speech recognition lifecycle
-  const [debugLogs, setDebugLogs] = useState<string[]>([]);
-  const addLog = useCallback((msg: string) => {
-    setDebugLogs((prev) => [...prev.slice(-19), `[${new Date().toLocaleTimeString()}] ${msg}`]);
-  }, []);
-
-  // Speech callbacks wrapped in useCallback to prevent infinite render loops
+  // Speech Recognition callbacks
   const handleInterimResult = useCallback((text: string) => {
     setInterimText(text);
   }, []);
 
-  const handleFinalResult = useCallback((text: string) => {
-    if (!text.trim()) return;
-    const id = `${Date.now()}`;
-    const tokens = tokenizeBilingualText(text, highlightWords);
-    const newItem: SubtitleItem = {
-      id,
-      text,
-      timestamp: Date.now(),
-      tokens,
-    };
-    setSubtitles((prev) => [...prev, newItem]);
+  const handleFinalResult = useCallback((rawText: string) => {
+    if (!rawText.trim()) return;
+    const id = `${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+    setRawSubtitles((prev) => [...prev, { id, rawText, timestamp: Date.now() }]);
     setInterimText('');
-  }, [highlightWords]);
+  }, []);
 
-  // Speech Recognition hook
-  const { supported, isListening, error, start, stop, localWhisperState, analyserNode } = useSpeechRecognition({
-    lang,
-    mode: transcriptionMode,
-    modelName: whisperModel,
-    interimResultCallback: handleInterimResult,
-    finalResultCallback: handleFinalResult,
-    onDebugLog: addLog
-  });
+  // Speech Recognition Hook
+  const { supported, isListening, error, start, stop, localWhisperState, analyserNode } =
+    useSpeechRecognition({
+      lang,
+      mode: transcriptionMode,
+      modelName: whisperModel,
+      interimResultCallback: handleInterimResult,
+      finalResultCallback: handleFinalResult,
+    });
 
-  // When changing language, stop listening, clear interim, and switch language
+  // Language Change Handler
   const handleLanguageChange = (newLang: string) => {
     if (isListening) {
       stop();
@@ -117,6 +113,7 @@ export default function App() {
     setInterimText('');
   };
 
+  // Start / Stop Toggle
   const handleToggleListening = () => {
     if (isListening) {
       stop();
@@ -125,39 +122,117 @@ export default function App() {
     }
   };
 
-  const handleToggleTheme = () => {
-    setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
-  };
-
+  // Clear Session Transcriptions
   const handleClearSession = () => {
-    if (window.confirm('Are you sure you want to clear current session transcriptions?')) {
-      setSubtitles([]);
+    if (window.confirm('現在の文字起こし履歴をクリアしますか？')) {
+      setRawSubtitles([]);
       setInterimText('');
+      showToast('文字起こし履歴をクリアしました');
     }
   };
 
-  const handleAddHighlightWord = (newWord: HighlightWord) => {
-    setHighlightWords((prev) => [...prev, newWord]);
+  // Copy All Text
+  const handleCopyAll = async () => {
+    if (subtitles.length === 0) return;
+    const fullText = subtitles
+      .map((item) => item.tokens.map((t) => t.text).join(''))
+      .join('\n');
+    const success = await copyToClipboard(fullText);
+    if (success) {
+      setIsAllCopied(true);
+      showToast('すべての文字起こしをクリップボードにコピーしました！');
+      setTimeout(() => setIsAllCopied(false), 2000);
+    }
   };
 
-  const handleRemoveHighlightWord = (wordText: string) => {
-    setHighlightWords((prev) => prev.filter((w) => w.word !== wordText));
+  // Copy Single Subtitle Line
+  const handleCopyLine = async (text: string, id: string) => {
+    const success = await copyToClipboard(text);
+    if (success) {
+      setCopiedItemId(id);
+      showToast('行テキストをコピーしました');
+      setTimeout(() => setCopiedItemId(null), 1500);
+    }
   };
 
-  const handleImportHighlightWords = (imported: HighlightWord[]) => {
-    // Avoid duplicates
-    setHighlightWords((prev) => {
+  // Download plain text (.txt)
+  const handleDownloadTXT = () => {
+    if (subtitles.length === 0) return;
+    const txtContent = exportToTXT(subtitles);
+    downloadFile(
+      txtContent,
+      `duallingua_transcription_${new Date().toISOString().slice(0, 10)}.txt`,
+      'text/plain;charset=utf-8'
+    );
+    showToast('TXTファイルを保存しました');
+  };
+
+  // Download standard SRT subtitle file (.srt)
+  const handleDownloadSRT = () => {
+    if (subtitles.length === 0) return;
+    const srtContent = subtitles
+      .map((item, index) => {
+        const text = item.tokens.map((t) => t.text).join('');
+        const startSec = index * 4;
+        const endSec = startSec + 3;
+        const pad = (n: number) => n.toString().padStart(2, '0');
+        const sTime = `00:${pad(Math.floor(startSec / 60))}:${pad(startSec % 60)},000`;
+        const eTime = `00:${pad(Math.floor(endSec / 60))}:${pad(endSec % 60)},000`;
+        return `${index + 1}\n${sTime} --> ${eTime}\n${text}\n\n`;
+      })
+      .join('');
+
+    downloadFile(
+      srtContent,
+      `duallingua_subtitles_${new Date().toISOString().slice(0, 10)}.srt`,
+      'text/plain;charset=utf-8'
+    );
+    showToast('SRTファイルを保存しました');
+  };
+
+  // Delete individual subtitle line
+  const handleDeleteLine = (id: string) => {
+    setRawSubtitles((prev) => prev.filter((item) => item.id !== id));
+    showToast('発話行を削除しました');
+  };
+
+  // Add Word to Dictionary
+  const handleAddDictionaryWord = (newWord: DictionaryWord) => {
+    setDictionaryWords((prev) => [newWord, ...prev]);
+    showToast(`「${newWord.traditional || newWord.simplified || newWord.english}」を辞書に登録しました`);
+  };
+
+  // Remove Word from Dictionary
+  const handleRemoveDictionaryWord = (id: string) => {
+    setDictionaryWords((prev) => prev.filter((w) => w.id !== id));
+    showToast('辞書から単語を削除しました');
+  };
+
+  // Import Words to Dictionary
+  const handleImportDictionaryWords = (imported: DictionaryWord[]) => {
+    if (imported.length === 0) return;
+    setDictionaryWords((prev) => {
       const merged = [...prev];
       imported.forEach((imp) => {
-        if (!merged.some((m) => m.word.toLowerCase() === imp.word.toLowerCase())) {
+        const key = (imp.traditional || imp.simplified || imp.english || '').toLowerCase();
+        if (
+          key &&
+          !merged.some(
+            (m) =>
+              (m.traditional || '').toLowerCase() === key ||
+              (m.simplified || '').toLowerCase() === key ||
+              (m.english || '').toLowerCase() === key
+          )
+        ) {
           merged.push(imp);
         }
       });
       return merged;
     });
+    showToast(`${imported.length} 件の新しい単語を辞書に追加しました`);
   };
 
-  // Count highlight words occurrences
+  // Count total highlighted token occurrences
   const totalHighlightMatches = useMemo(() => {
     let count = 0;
     subtitles.forEach((item) => {
@@ -168,33 +243,28 @@ export default function App() {
     return count;
   }, [subtitles]);
 
-  // Is selected word already in highlights?
-  const isSelectedWordHighlighted = useMemo(() => {
-    if (!selectedWord) return false;
-    return highlightWords.some(
-      (hw) => hw.word.toLowerCase() === selectedWord.text.toLowerCase()
-    );
-  }, [selectedWord, highlightWords]);
-
   return (
-    <div className="app-container">
-      {/* Header bar */}
+    <div className="min-h-screen bg-[#FAF8F5] text-[#1E293B] flex flex-col selection:bg-rose-100 selection:text-rose-900">
+      
+      {/* Top Header */}
       <Header
         currentLang={lang}
         onChangeLang={handleLanguageChange}
-        theme={theme}
-        onToggleTheme={handleToggleTheme}
         onClearSession={handleClearSession}
+        onCopyAll={handleCopyAll}
+        onDownloadTXT={handleDownloadTXT}
+        onDownloadSRT={handleDownloadSRT}
         hasSubtitles={subtitles.length > 0}
+        isCopied={isAllCopied}
       />
 
-      {/* Main split dashboard layout */}
-      <main className="main-content">
+      {/* Main Container */}
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-5 grid grid-cols-1 lg:grid-cols-12 gap-5">
         
-        {/* Left column: Transcript Subtitle list & Mic visualizer controls */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+        {/* Left Column: Speech Controller & Live Subtitles Board (7 cols) */}
+        <div className="lg:col-span-7 flex flex-col gap-5">
           
-          {/* Visualizer header display */}
+          {/* Audio Visualizer & Big Mic Switch */}
           <Visualizer
             isListening={isListening}
             onToggleListening={handleToggleListening}
@@ -206,28 +276,35 @@ export default function App() {
             whisperModel={whisperModel}
             setWhisperModel={setWhisperModel}
             localWhisperState={localWhisperState}
+            currentLang={lang}
           />
 
-          {/* Subtitles board */}
-          <div className="glass-panel" style={{ flex: 1, padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px' }}>
-              <h2 style={{ fontSize: '1.1rem', color: 'var(--text-primary)' }}>Live Subtitles</h2>
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                Target recognition: {lang === 'en-US' ? 'English' : 'Chinese'}
+          {/* Subtitles Area */}
+          <div className="cream-card p-5 flex flex-col gap-3 flex-1">
+            <div className="flex items-center justify-between pb-3 border-b border-[#E8E2D8]">
+              <div className="flex items-center gap-2">
+                <MessageSquare className="w-4 h-4 text-indigo-600" />
+                <h2 className="text-sm font-bold text-[#1E293B]">リアルタイム字幕</h2>
+              </div>
+              <span className="text-xs text-[#64748B]">
+                {subtitles.length} 件の文
               </span>
             </div>
-            
+
             <SubtitleList
               subtitles={subtitles}
               interimText={interimText}
-              onSelectWord={(text, type) => setSelectedWord({ text, type })}
+              onSelectWord={(wordStr, matchedWord) => setSelectedWordModal({ wordStr, matchedWord })}
+              onCopyText={handleCopyLine}
+              onDeleteLine={handleDeleteLine}
+              copiedId={copiedItemId}
             />
           </div>
 
         </div>
 
-        {/* Right column: Highlights and analysis side panels */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+        {/* Right Column: User Dictionary Manager & Statistics (5 cols) */}
+        <div className="lg:col-span-5 flex flex-col gap-5">
           
           {/* Real-time speech statistics */}
           <StatisticsPanel
@@ -236,58 +313,35 @@ export default function App() {
             highlightCount={totalHighlightMatches}
           />
 
-          {/* Highlight Manager sidebar */}
+          {/* Dictionary Manager */}
           <HighlightManager
-            highlightWords={highlightWords}
-            onAddWord={handleAddHighlightWord}
-            onRemoveWord={handleRemoveHighlightWord}
-            onImportWords={handleImportHighlightWords}
+            dictionaryWords={dictionaryWords}
+            onAddWord={handleAddDictionaryWord}
+            onRemoveWord={handleRemoveDictionaryWord}
+            onImportWords={handleImportDictionaryWords}
+            onSelectWordForDetail={(wordStr, matchedWord) => setSelectedWordModal({ wordStr, matchedWord })}
           />
 
         </div>
 
       </main>
 
-      {/* Diagnostics panel */}
-      <div className="glass-panel" style={{ margin: '0 24px 24px 24px', padding: '16px' }}>
-        <details>
-          <summary style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)', cursor: 'pointer' }}>
-            ⚙️ Connection & Microphone Diagnostic Console (クリックして詳細を展開)
-          </summary>
-          <div style={{
-            marginTop: '12px',
-            backgroundColor: '#000',
-            fontFamily: 'monospace',
-            fontSize: '0.8rem',
-            padding: '12px',
-            borderRadius: '8px',
-            maxHeight: '150px',
-            overflowY: 'auto',
-            color: '#10b981',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '4px',
-            textAlign: 'left'
-          }}>
-            {debugLogs.length === 0 ? (
-              <span style={{ color: '#64748b' }}>No diagnostic events yet. Click recording to start diagnostics...</span>
-            ) : (
-              debugLogs.map((logStr, idx) => (
-                <span key={idx}>{logStr}</span>
-              ))
-            )}
-          </div>
-        </details>
-      </div>
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 z-50 bg-[#1E293B] text-white px-4 py-2.5 rounded-xl shadow-lg text-xs font-semibold flex items-center gap-2 animate-in fade-in slide-in-from-bottom-2 duration-150">
+          <Sparkles className="w-4 h-4 text-amber-300" />
+          <span>{toastMessage}</span>
+        </div>
+      )}
 
-      {/* Selected word overlay modal */}
-      {selectedWord && (
+      {/* Word Details & Dictionary Register Modal */}
+      {selectedWordModal && (
         <WordDetailsModal
-          word={selectedWord.text}
-          type={selectedWord.type}
-          isAlreadyHighlighted={isSelectedWordHighlighted}
-          onClose={() => setSelectedWord(null)}
-          onAddHighlight={handleAddHighlightWord}
+          wordStr={selectedWordModal.wordStr}
+          matchedWord={selectedWordModal.matchedWord}
+          onClose={() => setSelectedWordModal(null)}
+          onAddWord={handleAddDictionaryWord}
+          onRemoveWord={handleRemoveDictionaryWord}
         />
       )}
 
