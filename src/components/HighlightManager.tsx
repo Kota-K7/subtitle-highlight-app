@@ -14,7 +14,9 @@ import {
   Check,
   X,
   AlertTriangle,
-  Info
+  Info,
+  Copy,
+  FileText
 } from 'lucide-react';
 import type { DictionaryWord, WordImportSummary } from '../types';
 import { 
@@ -632,10 +634,39 @@ export default function HighlightManager({
             {/* Content per Tab */}
             {templateTab === 'json' && (
               <div className="flex flex-col gap-3">
-                <p className="text-xs text-[#475569]">
-                  以下のJSONテンプレートをコピーして編集し、右上の「インポート」または「テキスト貼り付け追加」から一括登録できます。
-                </p>
-                <div className="relative bg-[#1E293B] text-slate-200 p-3 rounded-xl font-mono text-[11px] overflow-x-auto max-h-56">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-[#475569]">
+                    以下のJSONテンプレートをコピーして編集し、一括登録できます。
+                  </p>
+                  <button
+                    onClick={() => {
+                      setPasteJsonText(SAMPLE_WORD_JSON_TEMPLATE);
+                      setTemplateTab('paste');
+                    }}
+                    className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold flex items-center gap-1 cursor-pointer"
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    貼り付け枠に挿入して編集
+                  </button>
+                </div>
+                <div className="relative bg-[#1E293B] text-slate-200 p-3 rounded-xl font-mono text-[11px] overflow-x-auto max-h-56 select-all group">
+                  <button
+                    onClick={() => handleCopyTemplateText(SAMPLE_WORD_JSON_TEMPLATE, 'json')}
+                    className="absolute top-2 right-2 px-2 py-1 bg-slate-700/80 hover:bg-slate-600 text-slate-200 hover:text-white rounded-md text-[10px] font-sans flex items-center gap-1 transition-colors cursor-pointer"
+                    title="コピー"
+                  >
+                    {copiedTemplate === 'json' ? (
+                      <>
+                        <Check className="w-3 h-3 text-emerald-400" />
+                        <span>コピー完了</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3 h-3" />
+                        <span>コピー</span>
+                      </>
+                    )}
+                  </button>
                   <pre>{SAMPLE_WORD_JSON_TEMPLATE}</pre>
                 </div>
                 <button
@@ -649,7 +680,7 @@ export default function HighlightManager({
                     </>
                   ) : (
                     <>
-                      <Code2 className="w-4 h-4" />
+                      <Copy className="w-4 h-4" />
                       JSONテンプレートをコピー
                     </>
                   )}
@@ -662,7 +693,24 @@ export default function HighlightManager({
                 <p className="text-xs text-[#475569]">
                   開発時に初期辞書（<code className="text-indigo-700 bg-indigo-50 px-1 py-0.5 rounded">src/utils/helpers.ts</code> の <code className="text-indigo-700 bg-indigo-50 px-1 py-0.5 rounded">DEFAULT_DICTIONARY</code>）へ直接追加するコード形式です。
                 </p>
-                <div className="relative bg-[#1E293B] text-slate-200 p-3 rounded-xl font-mono text-[11px] overflow-x-auto max-h-56">
+                <div className="relative bg-[#1E293B] text-slate-200 p-3 rounded-xl font-mono text-[11px] overflow-x-auto max-h-56 select-all group">
+                  <button
+                    onClick={() => handleCopyTemplateText(SAMPLE_CODE_TEMPLATE, 'code')}
+                    className="absolute top-2 right-2 px-2 py-1 bg-slate-700/80 hover:bg-slate-600 text-slate-200 hover:text-white rounded-md text-[10px] font-sans flex items-center gap-1 transition-colors cursor-pointer"
+                    title="コピー"
+                  >
+                    {copiedTemplate === 'code' ? (
+                      <>
+                        <Check className="w-3 h-3 text-emerald-400" />
+                        <span>コピー完了</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3 h-3" />
+                        <span>コピー</span>
+                      </>
+                    )}
+                  </button>
                   <pre>{SAMPLE_CODE_TEMPLATE}</pre>
                 </div>
                 <button
@@ -676,7 +724,7 @@ export default function HighlightManager({
                     </>
                   ) : (
                     <>
-                      <Code2 className="w-4 h-4" />
+                      <Copy className="w-4 h-4" />
                       コードスニペットをコピー
                     </>
                   )}
@@ -686,20 +734,85 @@ export default function HighlightManager({
 
             {templateTab === 'paste' && (
               <div className="flex flex-col gap-3">
-                <p className="text-xs text-[#475569]">
-                  配列形式のJSONデータを直接貼り付けて、辞書に一括インポートできます。
-                </p>
-                <textarea
-                  value={pasteJsonText}
-                  onChange={(e) => setPasteJsonText(e.target.value)}
-                  placeholder={`[\n  {\n    "traditional": "九二共識",\n    "simplified": "九二共识",\n    "pinyin": "jiǔ èr gòng shí",\n    "english": "1992 Consensus",\n    "japanese": "九二共識",\n    "category": "兩岸關係・臺灣政治"\n  }\n]`}
-                  rows={7}
-                  className="w-full text-xs font-mono p-3 bg-[#FAF8F5] border border-[#E8E2D8] rounded-xl text-[#1E293B] focus:bg-white outline-none"
-                />
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <p className="text-xs text-[#475569]">
+                    JSON配列データを貼り付けて、辞書に一括インポートできます。
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setPasteJsonText(SAMPLE_WORD_JSON_TEMPLATE)}
+                      className="px-2.5 py-1 text-[11px] font-semibold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg flex items-center gap-1 transition-colors cursor-pointer"
+                      title="サンプル形式を入力欄に自動セット"
+                    >
+                      <FileText className="w-3.5 h-3.5" />
+                      テンプレを挿入
+                    </button>
+                    <button
+                      onClick={() => handleCopyTemplateText(SAMPLE_WORD_JSON_TEMPLATE, 'paste-sample')}
+                      className="px-2.5 py-1 text-[11px] font-semibold bg-[#FAF8F5] hover:bg-[#F2ECE1] text-[#475569] border border-[#E8E2D8] rounded-lg flex items-center gap-1 transition-colors cursor-pointer"
+                      title="サンプル形式をクリップボードにコピー"
+                    >
+                      {copiedTemplate === 'paste-sample' ? (
+                        <>
+                          <Check className="w-3.5 h-3.5 text-emerald-600" />
+                          <span className="text-emerald-700 font-bold">コピー完了</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3.5 h-3.5" />
+                          <span>テンプレをコピー</span>
+                        </>
+                      )}
+                    </button>
+                    {pasteJsonText && (
+                      <button
+                        onClick={() => setPasteJsonText('')}
+                        className="px-2 py-1 text-[11px] text-[#94A3B8] hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                        title="入力欄をクリア"
+                      >
+                        クリア
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="relative">
+                  <textarea
+                    value={pasteJsonText}
+                    onChange={(e) => setPasteJsonText(e.target.value)}
+                    placeholder={`[\n  {\n    "traditional": "九二共識",\n    "simplified": "九二共识",\n    "pinyin": "jiǔ èr gòng shí",\n    "english": "1992 Consensus",\n    "japanese": "九二共識",\n    "category": "兩岸關係・臺灣政治"\n  }\n]`}
+                    rows={8}
+                    className="w-full text-xs font-mono p-3 bg-[#FAF8F5] border border-[#E8E2D8] rounded-xl text-[#1E293B] focus:bg-white outline-none"
+                  />
+                  {!pasteJsonText && (
+                    <button
+                      onClick={() => setPasteJsonText(SAMPLE_WORD_JSON_TEMPLATE)}
+                      className="absolute bottom-4 right-4 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg shadow-sm flex items-center gap-1.5 transition-all cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      サンプル形式を挿入して試す
+                    </button>
+                  )}
+                </div>
+
+                <div className="p-2.5 bg-[#FAF8F5] border border-[#E8E2D8] rounded-xl flex items-start gap-2 text-[11px] text-[#64748B]">
+                  <Info className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
+                  <div className="leading-relaxed">
+                    <span className="font-semibold text-[#334155]">利用可能な項目: </span>
+                    <code className="text-indigo-700 font-mono">traditional</code> (必須),{' '}
+                    <code className="text-[#475569] font-mono">simplified</code>,{' '}
+                    <code className="text-[#475569] font-mono">pinyin</code>,{' '}
+                    <code className="text-[#475569] font-mono">english</code>,{' '}
+                    <code className="text-[#475569] font-mono">japanese</code>,{' '}
+                    <code className="text-[#475569] font-mono">category</code>,{' '}
+                    <code className="text-[#475569] font-mono">notes</code>
+                  </div>
+                </div>
+
                 <button
                   onClick={handlePasteImport}
                   disabled={!pasteJsonText.trim()}
-                  className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+                  className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
                 >
                   <Plus className="w-4 h-4" />
                   辞書に一括インポート実行

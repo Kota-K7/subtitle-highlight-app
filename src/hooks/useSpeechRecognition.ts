@@ -188,19 +188,23 @@ export function useSpeechRecognition({
       log(`Speech recognition error event: "${event.error}"`);
       
       if (event.error === 'not-allowed') {
-        setError('Microphone permission denied. Please check browser settings.');
+        setError('マイクへのアクセスが拒否されました。ブラウザの設定でマイクを許可してください。');
+        setIsListening(false);
+        isListeningRef.current = false;
+      } else if (event.error === 'service-not-allowed') {
+        setError('音声認識サービスがブロックされています。iPhoneの場合は「設定 > 一般 > キーボード > 音声入力をオン」にするか、Safariで直接開いてください。または上の「オフライン(Whisper)」モードをお試しください。');
         setIsListening(false);
         isListeningRef.current = false;
       } else if (event.error === 'audio-capture') {
-        setError('No microphone found or microphone is busy.');
+        setError('マイクが見つからないか、他のアプリで使用中です。');
         setIsListening(false);
         isListeningRef.current = false;
       } else if (event.error === 'no-speech') {
         log('No speech detected (silent).');
       } else if (event.error === 'network') {
-        setError('Speech recognition network error occurred.');
+        setError('音声認識のネットワーク通信エラーが発生しました。');
       } else {
-        setError(`Speech recognition error: ${event.error}`);
+        setError(`音声認識エラー: ${event.error}`);
       }
     };
 
