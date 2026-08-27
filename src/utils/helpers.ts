@@ -253,6 +253,52 @@ export function downloadFile(content: string, filename: string, mimeType: string
  */
 export const SAMPLE_WORD_JSON_TEMPLATE = `[
   {
+    "traditional": "二二八事件",
+    "simplified": "二二八事件",
+    "pinyin": "èr èr bā shì jiàn",
+    "english": "February 28 Incident",
+    "japanese": "2・28事件（台湾現代史の重大な転換点）",
+    "category": "台中現代史",
+    "notes": "1947年台湾で発生した民衆蜂起と国民政府による鎮圧事件"
+  },
+  {
+    "traditional": "九二共識",
+    "simplified": "九二共识",
+    "pinyin": "jiǔ èr gòng shí",
+    "english": "1992 Consensus",
+    "japanese": "九二共識（1992年合意）",
+    "category": "兩岸關係・臺灣政治",
+    "notes": "両岸関係における基本的政治合意の枠組み"
+  },
+  {
+    "traditional": "臥薪嚐膽",
+    "simplified": "卧薪尝胆",
+    "pinyin": "wò xīn cháng dǎn",
+    "english": "endure hardship to achieve a long-term goal",
+    "japanese": "臥薪嘗胆（将来の成功のために苦難に耐え忍ぶこと）",
+    "category": "成語・典故",
+    "notes": "越王勾践と呉王夫差の故事に基づく四字熟語"
+  }
+]`;
+
+export const SAMPLE_CODE_TEMPLATE = `// src/utils/helpers.ts の DEFAULT_DICTIONARY に追加する場合の形式:
+{
+  id: 'custom-${Date.now()}',
+  traditional: '美麗島事件',
+  simplified: '美丽岛事件',
+  pinyin: 'měi lì dǎo shì jiàn',
+  english: 'Formosa Magazine Incident (1979)',
+  japanese: '美麗島事件（台湾民主化運動の画期）',
+  category: '台中現代史',
+  notes: '1979年高雄市で発生した党外民主化運動の弾圧事件',
+  createdAt: Date.now(),
+},`;
+
+/**
+ * Initial curated vocabulary dataset for Taiwan/China history, cross-strait politics, military, and idioms
+ */
+export const DEFAULT_DICTIONARY: DictionaryWord[] = [
+  {
     "id": "tw-hist-1",
     "traditional": "二二八事件",
     "simplified": "二二八事件",
@@ -6532,7 +6578,7 @@ export const SAMPLE_WORD_JSON_TEMPLATE = `[
     "category": "產業・經濟",
     "notes": "ベンチャー企業、投資家、政府支援機構が相互に連携する環境。台湾ではハードウェアに偏重せず、AIやソフトウェアでの起業育成が急務となっている。",
     "createdAt": 1787750135765
-  }
+  },
 ];
 
 /**
@@ -6684,4 +6730,3 @@ export function validateAndFilterWordBatch(
     errors,
   };
 }
-
