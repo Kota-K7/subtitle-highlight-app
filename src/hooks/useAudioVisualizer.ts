@@ -25,9 +25,12 @@ export function useAudioVisualizer({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
+    let time = 0;
+
     const draw = () => {
       const width = canvas.width;
       const height = canvas.height;
+      time += 0.05;
       
       // Clear canvas
       ctx.clearRect(0, 0, width, height);
@@ -37,7 +40,7 @@ export function useAudioVisualizer({
       ctx.shadowColor = 'transparent';
 
       // Read audio data if we have an analyser node and are listening
-      let currentVolume: number;
+      let currentVolume = 0;
       let dataArray: Uint8Array | null = null;
       let bufferLength = 0;
 
@@ -56,6 +59,9 @@ export function useAudioVisualizer({
         const rms = Math.sqrt(sumSquares / bufferLength);
         // Scale it to a nice 0 - 255 range
         currentVolume = Math.min(255, rms * 600);
+      } else if (isListening) {
+        // Online Speech mode without raw mic node: generate pleasant dynamic activity
+        currentVolume = 120 + Math.sin(time * 2) * 35;
       } else {
         currentVolume = 0;
       }
@@ -65,46 +71,76 @@ export function useAudioVisualizer({
       const smoothedVolume = volumeRef.current;
       setMicVolume(smoothedVolume);
 
-      if (isListening && dataArray && bufferLength > 0) {
-        // Draw real voice waves (Siri/Alexa-like multi-layered oscilloscope waves)
+      if (isListening) {
         const waveCount = 3;
-        const baseAmplitude = (smoothedVolume / 255) * 45; // Max 45px amplitude
+        
+        if (dataArray && bufferLength > 0) {
+          // Draw real voice waves from analyser node (Offline / Whisper mode)
+          const baseAmplitude = (smoothedVolume / 255) * 45; // Max 45px amplitude
 
-        for (let w = 0; w < waveCount; w++) {
-          ctx.beginPath();
-          const opacity = 1 - w / waveCount;
-          
-          // Outer layers are more faded and slightly compressed
-          ctx.strokeStyle = w === 0 
-            ? accentColor 
-            : `${accentColor}${Math.floor(opacity * 140).toString(16).padStart(2, '0')}`;
-          
-          ctx.lineWidth = w === 0 ? 3.5 : 1.5;
-
-          // Draw the waveform line from left to right
-          const sliceWidth = width / bufferLength;
-          let x = 0;
-
-          for (let i = 0; i < bufferLength; i++) {
-            // Audio sample value scaled to [-1, 1]
-            const v = (dataArray[i] - 128) / 128.0;
-
-            // Add slight differences to secondary wave layers for aesthetic depth
-            const layerScale = 1.0 - w * 0.25;
+          for (let w = 0; w < waveCount; w++) {
+            ctx.beginPath();
+            const opacity = 1 - w / waveCount;
             
-            // Fade the wave smooth to zero at the left and right edges (bell curve)
-            const edgeScaler = Math.sin((i / bufferLength) * Math.PI);
+            ctx.strokeStyle = w === 0 
+              ? accentColor 
+              : `${accentColor}${Math.floor(opacity * 140).toString(16).padStart(2, '0')}`;
             
-            const y = height / 2 + v * baseAmplitude * layerScale * edgeScaler;
+            ctx.lineWidth = w === 0 ? 3.5 : 1.5;
 
-            if (i === 0) {
-              ctx.moveTo(x, y);
-            } else {
-              ctx.lineTo(x, y);
+            const sliceWidth = width / bufferLength;
+            let x = 0;
+
+            for (let i = 0; i < bufferLength; i++) {
+              const v = (dataArray[i] - 128) / 128.0;
+              const layerScale = 1.0 - w * 0.25;
+              const edgeScaler = Math.sin((i / bufferLength) * Math.PI);
+              const y = height / 2 + v * baseAmplitude * layerScale * edgeScaler;
+
+              if (i === 0) {
+                ctx.moveTo(x, y);
+              } else {
+                ctx.lineTo(x, y);
+              }
+              x += sliceWidth;
             }
-            x += sliceWidth;
+            ctx.stroke();
           }
-          ctx.stroke();
+        } else {
+          // Draw synthetic smooth ambient pulse wave (Online Web Speech mode)
+          const sampleCount = 100;
+          const sliceWidth = width / sampleCount;
+
+          for (let w = 0; w < waveCount; w++) {
+            ctx.beginPath();
+            const opacity = 1 - w / waveCount;
+            ctx.strokeStyle = w === 0 
+              ? accentColor 
+              : `${accentColor}${Math.floor(opacity * 140).toString(16).padStart(2, '0')}`;
+            ctx.lineWidth = w === 0 ? 3 : 1.5;
+
+            let x = 0;
+            for (let i = 0; i <= sampleCount; i++) {
+              const progress = i / sampleCount;
+              const edgeScaler = Math.sin(progress * Math.PI); // smoothly fade edges to 0
+              
+              const freq1 = 4 + w;
+              const freq2 = 2 + w * 0.5;
+              const waveVal = Math.sin(progress * Math.PI * freq1 + time * (1.5 + w * 0.5)) * 0.6 +
+                              Math.sin(progress * Math.PI * freq2 - time * 2) * 0.4;
+              
+              const amp = 14 * (1 - w * 0.25);
+              const y = height / 2 + waveVal * amp * edgeScaler;
+
+              if (i === 0) {
+                ctx.moveTo(x, y);
+              } else {
+                ctx.lineTo(x, y);
+              }
+              x += sliceWidth;
+            }
+            ctx.stroke();
+          }
         }
       } else {
         // Inactive: Draw a flat, elegant ambient line in center

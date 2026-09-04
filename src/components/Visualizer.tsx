@@ -206,11 +206,31 @@ export default function Visualizer({
 
       </div>
 
-      {/* Error alert */}
+      {/* Error alert with quick recovery action */}
       {speechError && (
-        <div className="mt-3 p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs flex items-center gap-2">
-          <AlertCircle className="w-4 h-4 shrink-0" />
-          <span>{speechError}</span>
+        <div className="mt-3 p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs flex flex-col gap-2">
+          <div className="flex items-start gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0 text-rose-600 mt-0.5" />
+            <div className="flex-1 leading-relaxed">
+              <span className="font-bold">マイク・音声認識エラー:</span> {speechError}
+            </div>
+          </div>
+
+          {transcriptionMode === 'web-speech' && (
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-rose-200/80">
+              <span className="text-[11px] text-rose-700 font-medium">
+                💡 クラウド通信を使わない「オフライン(Whisper)」モードならスマホのブラウザ内でも確実に動作します。
+              </span>
+              <button
+                type="button"
+                onClick={() => setTranscriptionMode('local-whisper')}
+                className="px-3 py-1.5 bg-rose-700 hover:bg-rose-800 text-white font-bold rounded-lg text-xs transition-colors shadow-xs cursor-pointer flex items-center gap-1.5"
+              >
+                <HardDrive className="w-3.5 h-3.5" />
+                <span>オフライン(Whisper)に切り替える</span>
+              </button>
+            </div>
+          )}
         </div>
       )}
 

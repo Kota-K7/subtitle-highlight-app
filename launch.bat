@@ -26,8 +26,8 @@ if not defined NPM_CMD (
     set "NPM_CMD=npm"
 )
 
-echo [1/3] Cleaning up existing servers on port 5173...
-for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":5173 " ^| findstr "LISTENING" 2^>nul') do (
+echo [1/3] Cleaning up existing servers on port 3000...
+for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":3000 " ^| findstr "LISTENING" 2^>nul') do (
     taskkill /PID %%a /F >nul 2>&1
 )
 ping 127.0.0.1 -n 2 > nul
@@ -40,7 +40,7 @@ set /a count=0
 :waitloop
 ping 127.0.0.1 -n 2 > nul
 set /a count+=1
-powershell -Command "$ErrorActionPreference='SilentlyContinue'; try { $r = Invoke-WebRequest -Uri 'http://localhost:5173/' -TimeoutSec 2 -UseBasicParsing; if ($r.StatusCode -eq 200) { exit 0 } } catch {}; exit 1" >nul 2>&1
+powershell -Command "$ErrorActionPreference='SilentlyContinue'; try { $r = Invoke-WebRequest -Uri 'http://localhost:3000/' -TimeoutSec 2 -UseBasicParsing; if ($r.StatusCode -eq 200) { exit 0 } } catch {}; exit 1" >nul 2>&1
 if %errorlevel%==0 goto :serverready
 echo    Waiting... %count%s
 if %count% geq 15 goto :timeout
@@ -50,10 +50,10 @@ goto :waitloop
 echo.
 echo Ready! Opening browser...
 ping 127.0.0.1 -n 2 > nul
-start "" "http://localhost:5173/"
+start "" "http://localhost:3000/"
 echo.
 echo ========================================================
-echo   App is running at http://localhost:5173/
+echo   App is running at http://localhost:3000/
 echo   This window will close automatically.
 echo ========================================================
 ping 127.0.0.1 -n 4 > nul
@@ -62,5 +62,5 @@ exit
 :timeout
 echo.
 echo WARNING: Server did not respond within 15 seconds, but opening browser anyway...
-start "" "http://localhost:5173/"
+start "" "http://localhost:3000/"
 exit

@@ -188,23 +188,34 @@ export function useSpeechRecognition({
       log(`Speech recognition error event: "${event.error}"`);
       
       if (event.error === 'not-allowed') {
-        setError('マイクへのアクセスが拒否されました。ブラウザの設定でマイクを許可してください。');
+        setError('マイクへのアクセスが拒否されました。ブラウザまたは端末の設定でマイクを許可してください。');
         setIsListening(false);
         isListeningRef.current = false;
       } else if (event.error === 'service-not-allowed') {
-        setError('音声認識サービスがブロックされています。iPhoneの場合は「設定 > 一般 > キーボード > 音声入力をオン」にするか、Safariで直接開いてください。または上の「オフライン(Whisper)」モードをお試しください。');
+        const isIOS = typeof navigator !== 'undefined' && /iPhone|iPad|iPod/.test(navigator.userAgent);
+        const isHttp = typeof window !== 'undefined' && window.location.protocol === 'http:' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+        
+        let msg = '音声認識サービスがブロックされています。';
+        if (isHttp) {
+          msg += '【原因: HTTP接続】スマホから接続時はHTTPS(SSL)接続が必要です。または「オフライン(Whisper)」モードをご利用ください。';
+        } else if (isIOS) {
+          msg += '【iPhone/iPadの場合】「設定 > 一般 > キーボード > 音声入力をオン」にし、Safariで直接開いてください。または「オフライン(Whisper)」モードをお試しください。';
+        } else {
+          msg += '端末・ブラウザの音声認識サービスがブロックされています。「オフライン(Whisper)」モードをお試しください。';
+        }
+        setError(msg);
         setIsListening(false);
         isListeningRef.current = false;
       } else if (event.error === 'audio-capture') {
-        setError('マイクが見つからないか、他のアプリで使用中です。');
+        setError('マイクが見つからないか、他のアプリ・機能で使用中です。');
         setIsListening(false);
         isListeningRef.current = false;
       } else if (event.error === 'no-speech') {
         log('No speech detected (silent).');
       } else if (event.error === 'network') {
-        setError('音声認識のネットワーク通信エラーが発生しました。');
+        setError('音声認識サーバーとのネットワーク通信に失敗しました。ネット接続を確認するか、オフライン(Whisper)モードをお試しください。');
       } else {
-        setError(`音声認識エラー: ${event.error}`);
+        setError(`音声認識エラー (${event.error})。「オフライン(Whisper)」モードへの切り替えもお試しください。`);
       }
     };
 
@@ -215,7 +226,7 @@ export function useSpeechRecognition({
         log('Attempting Web Speech API auto-restart...');
         if (restartTimeoutRef.current) clearTimeout(restartTimeoutRef.current);
         restartTimeoutRef.current = setTimeout(() => {
-          if (isListeningRef.current) {
+          if (isListeningRef.current && recognitionRef.current) {
             try {
               recognitionRef.current.start();
             } catch (err: any) {
@@ -458,13 +469,21 @@ export function useSpeechRecognition({
 
     if (mode === 'web-speech') {
       if (!supported || !recognitionRef.current) {
-        setError('Web Speech API is not supported in this browser.');
+        setError('お使いのブラウザは Web Speech API に対応していません。Safari または Chrome をご利用いただくか、「オフライン(Whisper)」モードをお試しください。');
         setIsListening(false);
         isListeningRef.current = false;
         return;
       }
 
-      // Start Web Speech API
+      // Check if running in a secure context (HTTPS / localhost)
+      if (typeof window !== 'undefined' && window.isSecureContext === false) {
+        setError('【セキュリティ制限】音声認識機能は HTTPS 接続または localhost でのみ動作します。現在 HTTP で接続されているため、ブラウザによりサービスがブロックされています。HTTPS で接続するか、「オフライン(Whisper)」モードをお試しください。');
+        setIsListening(false);
+        isListeningRef.current = false;
+        return;
+      }
+
+      // Start Web Speech API directly WITHOUT getUserMedia to prevent mobile mic exclusivity locks!
       try {
         if (restartTimeoutRef.current) clearTimeout(restartTimeoutRef.current);
         recognitionRef.current.start();
@@ -473,19 +492,16 @@ export function useSpeechRecognition({
         console.error('Failed to start Web Speech API:', err);
         log(`Web Speech API start failed: ${err.message || err}`);
       }
-
-      // Simultaneously start real audio recording just for the visualizer!
-      await startAudioRecording();
     } else {
       // Local Whisper mode
       if (localWhisperState.status !== 'ready') {
-        setError('Whisper model is not loaded yet. Please wait for it to load.');
+        setError('Whisper モデルの読み込み中です。完了するまで少々お待ちください。');
         setIsListening(false);
         isListeningRef.current = false;
         return;
       }
 
-      // Start Web Audio recording + VAD
+      // Start Web Audio recording + VAD (only required for local Whisper)
       await startAudioRecording();
     }
   }, [mode, supported, localWhisperState.status, startAudioRecording, log]);
@@ -503,10 +519,12 @@ export function useSpeechRecognition({
           log('Web Speech API stop() called');
         } catch { /* ignore */ }
       }
+    } else {
+      stopAudioRecording();
     }
-
-    stopAudioRecording();
   }, [mode, stopAudioRecording, log]);
+
+  const isSecureContext = typeof window !== 'undefined' ? window.isSecureContext !== false : true;
 
   return {
     supported,
@@ -516,5 +534,6 @@ export function useSpeechRecognition({
     stop,
     localWhisperState,
     analyserNode,
+    isSecureContext,
   };
 }
